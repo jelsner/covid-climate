@@ -3,7 +3,7 @@ title: "COVID19-Climate"
 output: html_document
 ---
 
-Using https://github.com/imantsm/COVID-19
+Started with the repo: https://github.com/imantsm/COVID-19
 
 Import the data: Looking at the Hopkins COVID-19 data that was cloned from https://github.com/CSSEGISandData/COVID-19
 
