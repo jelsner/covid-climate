@@ -115,3 +115,121 @@ merge(x.spl) %>%
   st_set_dimensions(3, values = paste0("band", 1:6)) %>%
   st_set_dimensions(names = c("x", "y", "band"))
 ```
+
+#### Subsetting
+Besides the tidyverse subsetting and selection operators explained in this vignette, we can also use [ and [[. Since stars objects are a list of arrays with a metadata table describing dimensions, list extraction (and assignment) works as expected:
+```{r}
+class(x[[1]])
+dim(x[[1]])
+
+x$two = 2 * x[[1]]
+x
+```
+
+At this level, we can work with array objects directly.
+
+The stars subset operator [ works a bit different: its
+
+* first argument selects attributes
+* second argument selects the first dimension
+* third argument selects the second dimension, etc
+Thus,
+```{r}
+x["two", 1:10, , 2:4]
+```
+
+Alternatively, when [ is given a single argument of class sf, sfc or bbox, [ will work as a crop operator:
+```{r}
+circle <- st_sfc(st_buffer(st_point(c(293749.5, 9115745)), 400), crs = st_crs(x))
+plot(x[circle][, , , 1], reset = FALSE)
+plot(circle, col = NA, border = 'red', add = TRUE, lwd = 2)
+```
+
+### Reading a raster time series: NetCDF
+Another example is when we read raster time series model outputs in a NetCDF file, e.g. by
+```{r}
+w <- system.file("nc/bcsd_obs_1999.nc", package = "stars") %>%
+    read_stars("data/full_data_daily_2013.nc")
+```
+
+We see that
+```{r}
+w
+```
+
+For this dataset we can see that
+
+* variables have units associated (and a wrong unit, C is assigned to temperature)
+* time is now a dimension, with proper units and time steps
+
+#### Reading datasets from multiple files
+Model data are often spread across many files. An example of a 0.25 degree grid, global daily sea surface temperature product is found here; a subset of the 1981 data was downloaded from here.
+
+We read the data by giving `read_stars()` a vector with character names:
+```{r}
+x <- c(
+"avhrr-only-v2.19810901.nc",
+"avhrr-only-v2.19810902.nc",
+"avhrr-only-v2.19810903.nc",
+"avhrr-only-v2.19810904.nc",
+"avhrr-only-v2.19810905.nc",
+"avhrr-only-v2.19810906.nc",
+"avhrr-only-v2.19810907.nc",
+"avhrr-only-v2.19810908.nc",
+"avhrr-only-v2.19810909.nc"
+)
+```
+```{r}
+#install.packages("starsdata", repos = "http://pebesma.staff.ifgi.de", type = "source") 
+
+file_list = system.file(paste0("netcdf/", x), package = "starsdata")
+(y <- read_stars(file_list, quiet = TRUE))
+```
+
+Next, we select sea surface temperature (sst), and drop the singular zlev (depth) dimension using adrop:
+```{r}
+library(dplyr)
+library(abind)
+
+z <- y %>% select(sst) %>% adrop()
+```
+
+We can now graph the sea surface temperature (SST) using ggplot, which needs data in a long table form, and without units. DID NOT WORK!
+```{r}
+library(ggplot2)
+library(viridis)
+library(ggthemes)
+
+ggplot() +  
+  geom_stars(data = z[1], alpha = 0.8, downsample = c(10, 10, 1)) + 
+  facet_wrap("time") +
+  scale_fill_viridis() +
+  coord_equal() +
+  theme_map() +
+  theme(legend.position = "bottom") +
+  theme(legend.key.width = unit(2, "cm"))
+```
+
+### Vector data cube example
+Like `tbl_cube`, {stars} arrays have no limits to the number of dimensions they handle. An example is the origin-destination (OD) matrix, by time and travel mode.
+
+#### OD: space x space x travel mode x time x time
+We create a 5-dimensional matrix of traffic between regions, by day, by time of day, and by travel mode. Having day and time of day each as dimension is an advantage when we want to compute patterns over the day, for a certain period.
+```{r}
+nc <- st_read(system.file("gpkg/nc.gpkg", package = "sf")) 
+to <- from <- st_geometry(nc) # 100 polygons: O and D regions
+mode <- c("car", "bike", "foot") # travel mode
+day <- 1:100 # arbitrary
+
+library(units)
+
+units(day) <- as_units("days since 2015-01-01")
+hour <- set_units(0:23, h) # hour of day
+dims <- st_dimensions(origin = from, destination = to, mode = mode, day = day, hour = hour)
+(n = dim(dims))
+
+traffic = array(rpois(prod(n), 10), dim = n) # simulated traffic counts
+(st = st_as_stars(list(traffic = traffic),  dimensions = dims))
+```
+
+This array contains the simple feature geometries of origin and destination so that we can directly plot every slice without additional table joins. If we want to represent such an array as a tbl_cube, the simple feature geometry dimensions need to be replaced by indexes:
