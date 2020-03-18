@@ -1,16 +1,117 @@
 ---
 title: "COVID19-Climate"
 output: html_document
+editor_options: 
+  chunk_output_type: console
 ---
+
+### Retrieving COVID-19 cases
 
 Started with the repo: https://github.com/imantsm/COVID-19
 
 Import the data: Looking at the Hopkins COVID-19 data that was cloned from https://github.com/CSSEGISandData/COVID-19
 
 ```{r}
-library(dplyr)
-
 df_confirmed <- read.csv('./COVID-19-master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Confirmed.csv')
 df_deaths <- read.csv('./COVID-19-master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Deaths.csv')
 df_recovered <- read.csv('./COVID-19-master/csse_covid_19_data/csse_covid_19_time_series/time_series_19-covid-Recovered.csv')
+```
+
+Weather data.
+```{r}
+df_tMax <- read.csv('./COVID-19-master/csv/tMax.csv')
+```
+
+### Retrieving weather data from Dark Sky
+
+Set up Dark Sky API for retreiving weather data and forecasts.
+```{r}
+library(darksky)
+
+darksky_api_key(force = FALSE)
+```
+
+Get current forecast for Tallahassee
+```{r}
+now <- get_current_forecast(30.4380556, -84.2808333)
+print(now)
+```
+
+Historical (using Date objects)
+```{r}
+library(tidyverse)
+
+seq(Sys.Date()-10, Sys.Date(), "1 day") %>% 
+  map(~get_forecast_for(30.4380556, -84.2808333, .x)) %>% 
+  map_df("hourly") %>% 
+  ggplot(aes(x=time, y=temperature)) +
+  geom_line()
+```
+
+### Working with the {stars} package
+
+https://r-spatial.github.io/stars/articles/stars1.html
+
+```{r}
+library(stars)
+```
+
+Spatiotemporal arrays are stored in objects of class stars; methods for class stars currently available are
+```{r}
+methods(class = "stars")
+```
+
+{tidyverse} methods are only visible after loading package {tidyverse}.
+
+#### Reading a satellite image
+
+We can read a satellite image through GDAL, e.g. from a GeoTIFF file in the package:
+```{r}
+tif <- system.file("tif/L7_ETMs.tif", package = "stars")
+x <- read_stars(tif)
+plot(x)
+```
+
+We see that the image is geographically referenced (has coordinate values along axes), and that the object returned (x) has three dimensions called x, y and band, and has one attribute.
+```{r}
+x
+```
+
+Each dimension has a name; the meaning of the fields of a single dimension are:
+
+field	| meaning
+------|--------
+from |	the origin index (1)
+to|	the final index (dim(x)[i])
+offset |	the start value for this dimension (pixel boundary), if regular
+delta	| the step (pixel, cell) size for this dimension, if regular
+refsys |	the reference system, or proj4string
+point	| logical; whether cells refer to points, or intervals
+values |	the sequence of values for this dimension (e.g., geometries), if irregular
+
+This means that for an index i (starting at i = 1) along a certain dimension, the corresponding dimension value (coordinate, time) is offset+ (i - 1) x delta. This value then refers to the start (edge) of the cell or interval; in order to get the interval middle or cell center, one needs to add half an offset.
+
+Dimension band is a simple sequence from 1 to 6. Since bands refer to colors, one could put their wavelength values in the values field.
+
+For this particular dataset (and most other raster datasets), we see that offset for dimension y is negative: this means that consecutive array values have decreasing 𝑦 values: cell indexes increase from top to bottom, in the direction opposite to the 𝑦 axis.
+
+The function `read_stars()` reads all bands from a raster dataset, or optionally a subset of raster datasets, into a single stars array structure. While doing so, raster values (often UINT8 or UINT16) are converted to double (numeric) values, and scaled back to their original values if needed if the file encodes the scaling parameters.
+
+The data structure stars is a generalisation of the `tbl_cube()` found in {cubelyr}; we can convert to that by
+
+#### Switching attributes to dimensions and back
+```{r}
+( x.spl <- split(x, "band") )
+
+merge(x.spl)
+```
+
+We see that the newly created dimension lost its name, and the single attribute got a default name. We can set attribute names with `setNames()`, and dimension names and values with `st_set_dimensions()`.
+```{r}
+library(dplyr)
+
+merge(x.spl) %>% 
+  setNames(names(x)) %>%
+  st_set_dimensions(3, values = paste0("band", 1:6)) %>%
+  st_set_dimensions(names = c("x", "y", "band"))
 ```
