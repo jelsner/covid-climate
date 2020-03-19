@@ -311,3 +311,4 @@ b <- st %>%
 ggplot() +  
   geom_line(data = b, aes(x = day, y = deaths))
 ```
+
