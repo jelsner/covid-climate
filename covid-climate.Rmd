@@ -194,7 +194,7 @@ library(abind)
 z <- y %>% select(sst) %>% adrop()
 ```
 
-We can now graph the sea surface temperature (SST) using ggplot, which needs data in a long table form, and without units. DID NOT WORK!
+We can now graph the sea surface temperature (SST) using ggplot, which needs data in a long table form, and without units.
 ```{r}
 library(ggplot2)
 library(viridis)
@@ -233,3 +233,81 @@ traffic = array(rpois(prod(n), 10), dim = n) # simulated traffic counts
 ```
 
 This array contains the simple feature geometries of origin and destination so that we can directly plot every slice without additional table joins. If we want to represent such an array as a tbl_cube, the simple feature geometry dimensions need to be replaced by indexes:
+```{r}
+st %>% as.tbl_cube()
+```
+
+The following demonstrates how dplyr can filter bike travel, and compute mean bike traffic by hour of day:
+```{r}
+b <- st %>% 
+  as.tbl_cube() %>%
+  filter(mode == "bike") %>%
+  group_by(hour) %>%
+  summarise(traffic = mean(traffic)) %>%
+  as.data.frame()
+require(ggforce) # for plotting a units variable
+## Loading required package: ggforce
+ggplot() +  
+  geom_line(data = b, aes(x = hour, y = traffic))
+```
+
+Do this for the weather data above.
+```{r}
+df_tMax <- read.csv('./COVID-19-master/csv/tMax.csv')
+
+sf_tMax <- st_as_sf(x = df_tMax, 
+                        coords = c("Lat", "Long"),
+                        crs = 4326)
+
+sf_deaths <- st_as_sf(x = df_deaths,
+                      coords = c("Lat", "Long"),
+                      crs = 4326)
+```
+
+```{r}
+to <- st_geometry(sf_tMax) # 442 locations
+day <- 1:74 # arbitrary
+
+units(day) <- as_units("days since 2019-12-31")
+
+dims <- st_dimensions(location = to, day = day)
+( n = dim(dims) )
+
+tMax <- array(df_tMax[1:nrow(df_tMax), 5:ncol(df_tMax)])
+( st <- st_as_stars(list(tMax = tMax),  dimensions = dims) )
+```
+
+```{r}
+st %>% as.tbl_cube()
+```
+
+```{r}
+library(ggforce) # for plotting a units variable
+b <- st %>% 
+  as.tbl_cube() %>%
+  group_by(day) %>%
+  summarise(tMax = mean(tMax)) %>%
+  as.data.frame()
+ggplot() +  
+  geom_line(data = b, aes(x = day, y = tMax))
+```
+
+Repeat for deaths
+```{r}
+to <- st_geometry(sf_deaths)
+day <- 1:53
+units(day) <- as_units("days since 2019-12-31")
+
+dims <- st_dimensions(location = to, day = day)
+( n = dim(dims) )
+deaths <- array(df_deaths[1:nrow(df_deaths), 5:ncol(df_deaths)])
+( st <- st_as_stars(list(deaths = deaths),  dimensions = dims) )
+
+b <- st %>% 
+  as.tbl_cube() %>%
+  group_by(day) %>%
+  summarise(deaths = sum(deaths)) %>%
+  as.data.frame()
+ggplot() +  
+  geom_line(data = b, aes(x = day, y = deaths))
+```
