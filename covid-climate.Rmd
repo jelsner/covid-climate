@@ -5,7 +5,40 @@ editor_options:
   chunk_output_type: console
 ---
 
-### Retrieving COVID-19 cases
+
+### Covid-19 Case Fatality Rates
+https://www.cebm.net/global-covid-19-case-fatality-rates/
+
+The case fatality rate (CFR) represents the proportion of cases who eventually die from a disease.
+
+Once an epidemic has ended, it is calculated with the formula: deaths / cases.
+
+But while an epidemic is still ongoing, as it is the case with the current novel coronavirus outbreak, this formula is, at the very least, "naïve" and can be "misleading if, at the time of analysis, the outcome is unknown for a non negligible proportion of patients." [8]
+
+(Methods for Estimating the Case Fatality Ratio for a Novel, Emerging Infectious Disease - Ghani et al, American Journal of Epidemiology).
+
+In other words, current deaths belong to a total case figure of the past, not to the current case figure in which the outcome (recovery or death) of a proportion (the most recent cases) hasn't yet been determined.
+
+The correct formula, therefore, would appear to be:
+
+CFR = deaths at day_x / cases at day_{x-T} (where T = average time period from case confirmation to death)
+
+This would constitute a fair attempt to use values for cases and deaths belonging to the same group of patients.
+
+The number of events (fatalities) `event` and the number of cases `n`.
+
+https://www.worldometers.info/coronavirus/
+```{r}
+library(meta)
+metaprop(event = 9, n = 90)
+
+metaprop(event = 1, n = 549)
+
+metaprop(event = 14582, n = (14582 + 97571))
+```
+
+
+### Retrieving Covid-19 cases
 
 Started with the repo: https://github.com/imantsm/COVID-19
 
