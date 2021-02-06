@@ -1,0 +1,80 @@
+---
+title: "Untitled"
+output: html_document
+editor_options: 
+  chunk_output_type: console
+---
+
+Vaccinations by country.
+```{r}
+f <- "https://raw.githubusercontent.com/owid/covid-19-data/master/public/data/vaccinations/vaccinations.csv"
+
+library(tidyverse)
+
+df <- read_csv(f)
+
+df <- df %>% 
+  select(location,
+         iso_code,
+         people_vaccinated_per_hundred) %>%
+  group_by(location) %>%
+  summarise(Latest = last(people_vaccinated_per_hundred))
+```
+
+```{r}
+library(sf)
+library(spData)
+
+world2 <- world %>%
+  rename(location = name_long) %>%
+  left_join(df)
+
+library(tmap)
+
+tm_shape(world2) +
+  tm_fill(col = "Latest")
+```
+
+COVID19 vaccinations by state.
+
+Get the data.
+```{r}
+f <- "https://raw.githubusercontent.com/owid/covid-19-data/e2da3a49250481a8a22f993ee5c3731111ba6958/scripts/scripts/vaccinations/us_states/input/cdc_data_2021-02-06.csv"
+
+df <- read_csv(f) 
+```
+
+Get a US census map with geography shifted for Alaska and Hawaii. Rename the state name column (`NAME`) to `LongName`.
+```{r}
+library(tidycensus)
+
+sf <- get_acs(geography = "state",
+              variables = "B01003_001",
+              geometry = TRUE,
+              shift_geo = TRUE) %>%
+  rename(LongName = NAME)
+```
+
+Join the COVID data frame with the simple feature data frame from the census. Then make a map showing the doses administered per 100K people as of February 6, 2021.
+```{r}
+sf <- sf %>%
+  left_join(df)
+
+library(tmap)
+
+tm_shape(sf) +
+  tm_fill(col = "Admin_Per_100K", title = "Per 100K" ) +
+  tm_borders(col = "gray70") +
+  tm_layout(legend.outside = TRUE)
+```
+
+
+
+
+
+
+
+
+$$
+\log\left[ \frac { P( \text{H} = \text{1} ) }{ 1 - P( \text{H} = \text{1} ) } \right] = \alpha + \beta_{1}(\text{x}) + \beta_{2}(\text{y}) + \epsilon \\ \log ( { \text{H} = \text{1} )}  = \alpha + \beta_{1}(\text{x}) + \beta_{2}(\text{y}) + \epsilon
+$$
